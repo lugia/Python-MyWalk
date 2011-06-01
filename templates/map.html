@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block head %}
+  <script type="text/javascript">
+    $(document).ready(function(){
+      $("a").click(function(event){
+        $("a").removeClass("test");
+        alert("Yay me");
+        event.preventDefault();
+        $(this).hide("slow");
+      });
+      //$(".drag").draggable();
+      //$(".drag").resizable();
+      $(".drag").click(function(event){
+        alert($(this).attr("checkins"));
+      });
+    });
+  </script>
+  
+{% endblock %}
+
+{% block contents %}
+  <div id="parent" style="position: relative; background-image: url(/static/map/{{map.background}}); background-repeat: no-repeat; width: {{map.width}}px; height:{{map.height}}px;">
+  {% for object in objects %}
+    <div id="draggable" objname="{{object.name}}" checkins="{{object.checkins}}" class="drag" style="margin: 3px; position: absolute; top: {{object.posY}}px; left: {{object.posX}}px; width: {{object.width}}px; height: {{object.height}}px">
+      <p></p>
+    </div>
+  
+  {% endfor %}
+  </div>
+{% endblock %}
