@@ -23,11 +23,14 @@ def subscribe(request):
         return renderJsonErrorResponse("Invalid request")
     
     device = Device.get_by_key_name(guid)
+#    return renderJsonErrorResponse("Device already exists")
     
     if device:
-        return renderJsonErrorResponse("Device already exists")
+        device.uri = uri
+        device.extra = extra
+    else:
+        device = Device(key_name = guid, guid = guid, uri = uri, extra = extra)
     
-    device = Device(key_name = guid, guid = guid, uri = uri, extra = extra)
     device.put()
     
     return renderTextResponse("Successfully subscribe device : %s" % guid)
@@ -111,8 +114,14 @@ def removeSchedule(request):
 
 def pushSchedule(schedule):
     opener = urllib2.build_opener()
-    opener.addheaders = [('X-WindowsPhone-Target', 'toast'), ('X-NotificationClass', '2')]
     
+    opener.addheaders = [('X-NotificationClass', '3')]
+    
+    if schedule.type == 'TOAST' :
+        opener.addheaders = [('X-WindowsPhone-Target', 'toast'), ('X-NotificationClass', '2')]
+    elif schedule.type == 'TILE':
+        opener.addheaders = [('X-WindowsPhone-Target', 'token'), ('X-NotificationClass', '1')]
+        
     req = urllib2.Request(url = schedule.device.uri, data = schedule.xmlText)
     assert req.get_method() == 'POST'
     response = opener.open(req)
@@ -125,7 +134,10 @@ def cron(request):
     count = 0    
     for schedule in query:
         count = count + 1
-        pushSchedule(schedule)
+        try:
+            pushSchedule(schedule)
+        except:
+            pass
         schedule.delete()
         
     return renderTextResponse("Successfully pushed %d schedules" % count)
@@ -143,7 +155,8 @@ def nukedata(request):
     return renderTextResponse("Nuked data")
 
 def main(request):
-    ret = {"Device" : [], "Logging" : [], "Schedule" : []}
+    ret = {"Time" : long(time.time()),
+           "Device" : [], "Logging" : [], "Schedule" : []}
     
     for d in Device.all():
         ret["Device"].append({"guid" : d.guid,
