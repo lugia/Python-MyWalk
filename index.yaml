@@ -1,0 +1,7 @@
+indexes:
+
+- kind: Schedule
+  properties:
+  - name: device
+  - name: type
+  - name: creationTime

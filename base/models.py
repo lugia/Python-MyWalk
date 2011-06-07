@@ -21,8 +21,12 @@ class Schedule(BaseModel):
     device = db.ReferenceProperty(Device)
     xmlText = db.StringProperty(required = True)
     timeStamp = db.IntegerProperty(required = True)
+    creationTime = db.IntegerProperty(required = True)
     type = db.StringProperty(required = True)
-
+    
+class FiredSchedule(Schedule):
+    returnCode = db.IntegerProperty()
+    
 class Map(BaseModel):
     name = db.StringProperty()
     description = db.StringProperty(required = False)

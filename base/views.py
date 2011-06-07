@@ -66,9 +66,10 @@ def addSchedule(request):
     guid = idx(request.REQUEST, "guid")
     xmlText = idx(request.REQUEST, "xml_text")
     timeStamp = idx(request.REQUEST, "scheduleTime")
+    creationTime = idx(request.REQUEST, "creationTime")
     type = idx(request.REQUEST, "type")
     
-    if guid == None or xmlText == None or timeStamp == None or type == None:
+    if guid == None or xmlText == None or timeStamp == None or creationTime == None or type == None:
         return renderJsonErrorResponse("Invalid request")
     
     device = Device.get_by_key_name(guid)
@@ -78,7 +79,8 @@ def addSchedule(request):
     
     schedule = Schedule(device = device, 
                         xmlText = xmlText, 
-                        timeStamp = long(timeStamp), 
+                        timeStamp = long(timeStamp),
+                        creationTime = long(creationTime), 
                         type = type)
     
     schedule.put()
@@ -93,6 +95,8 @@ def addSchedule(request):
 def removeSchedule(request):
     guid = idx(request.REQUEST, "guid")
     type = idx(request.REQUEST, "type")
+    time = idx(request.REQUEST, "upToTime")
+    
     
     if guid == None or type == None:
         return renderJsonErrorResponse("Invalid request")
@@ -102,7 +106,7 @@ def removeSchedule(request):
     if not device:
         return renderJsonErrorResponse("Device is not subscribed")
     
-    query = Schedule.gql("WHERE device = :1 AND type = :2", device, type)
+    query = Schedule.gql("WHERE device = :1 AND type = :2 AND creationTime < :3", device, type, time)
 
     count = 0    
     for schedule in query:
@@ -131,48 +135,78 @@ def cron(request):
     timeNow = long(time.time())
     query = Schedule.gql("WHERE timeStamp < :1 ", timeNow) 
 
-    count = 0    
+    count = 0
+    results = []    
     for schedule in query:
         count = count + 1
+        firedSchedule = FiredSchedule(device = schedule.device,
+                                        xmlText = schedule.xmlText,
+                                        timeStamp = schedule.timeStamp,
+                                        creationTime = schedule.creationTime,
+                                        type = schedule.type)
         try:
-            pushSchedule(schedule)
+            code = pushSchedule(schedule)
+            firedSchedule.returnCode = code
+            results.append('pushed: return code = ' + str(code))
         except:
+            results.append('exception thrown')
+            firedSchedule.returnCode = -1
             pass
+        
+        firedSchedule.put()
         schedule.delete()
         
-    return renderTextResponse("Successfully pushed %d schedules" % count)
+    return renderTextResponse("Successfully pushed %d schedules <br /> %s" % (count, '<br />'.join(results)))
 
 def nukedata(request):
-    for d in Device.all():
-        d.delete()
+    for d in Device.all(keys_only=True):
+        db.delete(d)
     
-    for l in Logging.all():
-        l.delete()
+    for l in Logging.all(keys_only=True):
+        db.delete(l)
     
-    for s in Schedule.all():
-        s.delete()
+    for s in Schedule.all(keys_only=True):
+        db.delete(s)
+    
+    for s in FiredSchedule.all(keys_only=True):
+        db.delete(s)
+        
         
     return renderTextResponse("Nuked data")
 
 def main(request):
-    ret = {"Time" : long(time.time()),
-           "Device" : [], "Logging" : [], "Schedule" : []}
+    DEVICE = "1. Device"
+    LOGGING = "2. Logging"
+    SCHEDULE = "3. Schedule"
+    FIREDSCHEDULE = "4. Fired Schedule"
+    
+    ret = {"0. Time" : long(time.time()),
+           DEVICE : [], LOGGING : [], SCHEDULE : [], FIREDSCHEDULE : []}
     
     for d in Device.all():
-        ret["Device"].append({"guid" : d.guid,
+        ret[DEVICE].append({"guid" : d.guid,
                               "uri" : d.uri,
                               "extra" : d.extra})
     
     for l in Logging.all():
-        ret["Logging"].append({"guid" : l.guid,
+        ret[LOGGING].append({"guid" : l.guid,
                               "text" : l.text,
                               "timestamp" : l.timeStamp})
     
     for s in Schedule.all():
-        ret["Schedule"].append({"guid" : s.device.guid,
+        ret[SCHEDULE].append({"guid" : s.device.guid,
                                "xml" : s.xmlText,
                                "time" : s.timeStamp,
+                               "creationTime" : s.creationTime,
                                "type" : s.type})
+
+    for s in FiredSchedule.all():
+        ret[FIREDSCHEDULE].append({"guid" : s.device.guid,
+                               "xml" : s.xmlText,
+                               "time" : s.timeStamp,
+                               "creationTime" : s.creationTime,
+                               "type" : s.type,
+                               "returnCode" : s.returnCode})
         
         
     return renderTextResponse("<pre>" + pprint.pformat(ret) + "</pre>")
